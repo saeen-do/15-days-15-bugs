@@ -1,4 +1,4 @@
-# Day-01 – BUG-NAME
+# Day-01 – IDOR (INSECURE DIRECT OBJECT REFRENCE)
 
 Explanation:
 IDOR happens when an application exposes a reference to an internal object (like a file, user ID, order ID, etc.) and doesn’t properly check if the user is authorized to access it. 
