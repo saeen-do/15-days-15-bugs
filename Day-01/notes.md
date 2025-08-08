@@ -1,56 +1,87 @@
-# Day-01 – IDOR (INSECURE DIRECT OBJECT REFRENCE)
+# Day-01 – IDOR (Insecure Direct Object Reference)
 
-Explanation:
-IDOR happens when an application exposes a reference to an internal object (like a file, user ID, order ID, etc.) and doesn’t properly check if the user is authorized to access it. 
-in very simple terms: You can access or modify someone else's data just by changing a value in the request — usually a numeric ID or some predictable identifier.
+## Theory
+**Definition**:  
+IDOR occurs when an application exposes a reference to an internal object (e.g., user ID, file ID, order ID) without properly verifying that the requesting user is authorized to access it.  
+In simple terms:  
+Change an ID or reference in the request → Access or modify someone else’s data.
 
-For example there is a banking app which sends this request when you visit your account info
+**Example Scenario:**  
+A banking app sends this request to fetch your account info:
 GET /accounts/56789
 Authorization: Bearer YOUR_TOKEN
 
-now you see your id is 56789, if you can change this id and see someone else account, this is IDOR , for example you change 56789 to 56790, and you see someone else account whose id is 56790. This happens is the app does not validates the ownership
+If you can change `56789` to `56790` and see another person’s account details, the app is vulnerable. This happens when the server does not validate resource ownership.
 
-Common Places Where IDOR Happens
+**Common Places Where IDOR Occurs:**
+**URLs:** `GET /user/1234`
+**Form Data:** `POST /updateProfile` with `user_id=1234`
+**Query Params:** `/invoice?id=9999`
+**JSON Body:** `{ "user_id": 4321 }`
+**Headers:** `X-User-ID: 5566`
 
-    URLs: GET /user/1234
+**Root Cause:**  
+Developers rely on client-supplied identifiers and think authentication is enough, forgetting proper **authorization** checks.
 
-    Form data: POST /updateProfile with user_id=1234
-
-    Query params: /invoice?id=9999
-
-    JSON body: { "user_id": 4321 }
-
-    Headers: X-User-ID: 5566
-    
-This happens because developers rely on client input without validating it and thinking "authentication" is enough — but forget authorization.
-Authentication = "who you are"
-Authorization = "what you’re allowed to do"
+**Authentication** = Who you are
+**Authorization** = What you are allowed to do  
 IDOR is a failure of authorization.
 
+##Lab Practice
+
+**Labs Completed:**
+1. **PortSwigger IDOR Lab** – Basic parameter manipulation  
+2. **PortSwigger IDOR Lab #2** – Horizontal privilege escalation  
+3. **OWASP Juice Shop** – Modified a value in the cart request
+
+**Steps Followed:**
+1. Intercept requests using Burp Suite.
+2. Identify IDs or references in parameters, URLs, headers, or request bodies.
+3. Modify the value to another valid or guessed ID.
+4. Observe the response for unauthorized access.
 
 
-I started practicing idor in portswigger idor lab, it felt easy then practiced on owasp juice shop that was also easy because there i have to simpt change a value
-in old labs there are only few simple step to find idor
-1:Intercept requests using Burp Suite.
-2:Find IDs or references in parameters, URLs, headers, or body.
-3:Change the value to another valid or guessed ID.
+## Real Target Testing
 
-After practicing on some labs i picked up a target from open bug bounty, i was just thinking where to start when i found a store on that webapp, when i added a product in the cart i observed the url there was an id , the url was like example.com/store/cart.php?id=11285&action=add, i opened burp changed the id and i saw another product was added in cart, it was kind of normal, until i saw i was able to add or delete products by changing id parameter and changing action,the site had aslo week or you can say broken authentication so i came up with another idea.
+**Platform:** Open Bug Bounty  
+**Target Type:** Web application  
 
-That application was allowing direct modification of the PHPSESSID cookie to impersonate another user’s session without authentication. By capturing a valid PHPSESSID and replaying it from a different browser or IP address, an attacker can fully take over another user’s account, including adding or removing items from their cart.
-so what i did?
-Login / initiate a session in Browser A (Burp’s built-in browser) and perform an action (e.g., add a book to the cart).
-Capture the request in Burp Suite and note the PHPSESSID value.
-Open Browser B (e.g., Firefox) and start a separate session (different cookies).
-Perform an action in Browser B and intercept the request in Burp Suite.
-Replace the PHPSESSID in Browser B’s request with the value captured from Browser A.
-Forward the request.
-Observe that Browser B now operates in Browser A’s session, allowing actions such as: Viewing or modifying the cart, deleting items and potentially accessing sensitive data
-I also changed my ip several times  (via VPN) and repeat steps 4–6. The attack still works, confirming the vulnerability is not restricted to a specific IP.
-
-In new and moderen apps mostly UUID-based ids are used but they can also be vulnerable , it looks secure but isn’t if UUIDs are predictable or enumerable and Apps often still fail to enforce proper access control
+**Discovery:**  
+While exploring a store feature, I added a product to the cart. The request looked like:
 
 
-In the end i will close this topic by saying IDOR = “Change the ID, steal the data.”
+GET /store/cart.php?id=11285&action=add HTTP/1.1
+Host: target.com
+Cookie: PHPSESSID=abcdef123456
 
-{If the server doesn’t check permissions, you win.If you're a dev and don't validate ownership — you lose.} quote by "chatgpt"
+
+**Manipulation:**
+Changing `id` value → Added a different product to the cart  
+Changing `action` → Added or removed products at will  
+No server-side validation of whether the authenticated user owned that cart entry  
+
+**Result:**  
+An attacker could:
+Add or remove any product from any user’s cart
+Potentially manipulate other order-related actions
+
+
+
+##Impact
+Unauthorized modification of user carts
+Violation of data integrity
+Potential chaining into higher-impact attacks (e.g., order manipulation, price tampering)
+
+
+##Recommendation
+Implement **server-side authorization checks** to ensure the requesting user owns the resource.
+Avoid using predictable IDs; use securely generated identifiers.
+Enforce input validation and reject unauthorized modifications.
+
+
+##Closing Note
+IDOR in one line:  
+“If the server doesn’t check permissions, you win. If you’re a dev and don’t validate ownership you lose.” (quote by chat-gpt)
+
+
+
